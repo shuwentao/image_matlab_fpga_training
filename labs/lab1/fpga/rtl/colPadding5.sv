@@ -1,5 +1,5 @@
-//ppc=2 pad=2
-module rowPadding #(
+//ppc=2 pad=2 halframe=en
+module colPadding #(
     parameter TUSER_WIDTH = 5 ,
     parameter TDEST_WIDTH = 2 ,
     parameter TDATA_WIDTH = 8
@@ -39,6 +39,7 @@ logic                       s_axis_tvalid_d1  ;
 logic [2*TDATA_WIDTH-1:0]   s_axis_tdata_d1   ;
 
 logic                       s_axis_tlast_d1   ;
+logic                       newFrame          ;
 
 enum {
     S_IDLE   = 'b0_0000_0001,
@@ -63,16 +64,18 @@ always_comb begin
     case(cstate)
         S_IDLE  : nstate = S_INIT0 ; 
         S_INIT0 : nstate = s_axis_tvalid_d1 ? S_INIT1 : S_INIT0 ;
-        S_INIT1 : nstate = s_axis_tvalid_d1 ? S_RUN : S_INIT1 ;
-        S_RUN   : nstate = s_axis_tvalid_d1 && s_axis_tlast_d1 ? S_DRAIN0 : S_RUN   ;
-        S_DRAIN0: nstate = S_DRAIN1;
-        S_DRAIN1: nstate = S_DRAIN2;
-        S_DRAIN2: nstate = S_DRAIN3;
-        S_DRAIN3: nstate = S_DONE  ;
+        S_INIT1 : nstate = newFrame ? S_INIT0 : (s_axis_tvalid_d1 ? S_RUN : S_INIT1) ;
+        S_RUN   : nstate = newFrame ? S_INIT0 : (s_axis_tvalid_d1 && s_axis_tlast_d1 ? S_DRAIN0 : S_RUN) ;
+        S_DRAIN0: nstate = newFrame ? S_INIT0 : S_DRAIN1 ;
+        S_DRAIN1: nstate = newFrame ? S_INIT0 : S_DRAIN2 ;
+        S_DRAIN2: nstate = newFrame ? S_INIT0 : S_DRAIN3 ;
+        S_DRAIN3: nstate = newFrame ? S_INIT0 : S_DONE   ;
         S_DONE  : nstate = S_IDLE  ;
         default : nstate = S_IDLE  ;
     endcase
 end
+
+assign newFrame = s_axis_tvalid && s_axis_tuser[0] ;
 
 always_ff@(posedge clk) begin
     s_axis_tvalid_d1 <= s_axis_tvalid & s_axis_tready ;
@@ -135,6 +138,8 @@ end
 always_ff@(posedge clk) begin
     if(rst)
         xpm_s_axis_tvalid <= 1'b0 ;
+    else if(newFrame)
+        xpm_s_axis_tvalid <= 1'b0 ;
     else if(nstate == S_RUN)
         xpm_s_axis_tvalid <= s_axis_tvalid_d1 ;
     else if(nstate == S_DRAIN0)
@@ -167,6 +172,8 @@ assign xpm_s_axis_tdata = {PAD_reg4,PAD_reg5} ;
 
 always_ff@(posedge clk) begin
     if(rst)
+        xpm_s_axis_tlast <= 1'b0 ;
+    else if(newFrame)
         xpm_s_axis_tlast <= 1'b0 ;
     else if(cstate == S_DRAIN2)
         xpm_s_axis_tlast <= 1'b1 ;
