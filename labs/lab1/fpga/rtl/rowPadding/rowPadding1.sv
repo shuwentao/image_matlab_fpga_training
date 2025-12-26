@@ -67,12 +67,13 @@ logic                       xpm_s_axis_tuser ;
 
 logic                       prog_full_axis   ;
 
-assign newFrame = s_axis_tvalid && s_axis_tuser[0] ;
+
+assign newFrame = s_axis_tvalid && s_axis_tuser[0] ; //half frame signal
 
 always_ff@(posedge clk) begin
     if(rst)
         s_axis_tvalid_d1 <= 1'b0 ;
-    else if(v_cnt == v_num && h_cnt < h_num - 1)
+    else if(v_cnt == v_num && h_cnt < h_num - 1) //drain last line of output image
         s_axis_tvalid_d1 <= ~ prog_full_axis ;
     else
         s_axis_tvalid_d1 <= s_axis_tvalid & s_axis_tready ;
@@ -83,7 +84,7 @@ always_ff@(posedge clk) begin
 end
 
 always_ff@(posedge clk) begin
-    if(v_cnt == v_num && h_cnt == h_num - 2)
+    if(v_cnt == v_num && h_cnt == h_num - 2) //generate tlast of output image's last line 
         s_axis_tlast_d1 <= 1'b1 ;
     else
         s_axis_tlast_d1 <= s_axis_tlast ; 
@@ -149,7 +150,7 @@ always_ff@(posedge clk) begin
         xpm_s_axis_tvalid <= 1'b0 ;
     else if(newFrame)
         xpm_s_axis_tvalid <= 1'b0 ;
-    else if(v_cnt == 0)
+    else if(v_cnt == 0) //store first line of input image,disable output,
         xpm_s_axis_tvalid <= 1'b0 ;
     else
         xpm_s_axis_tvalid <= s_axis_tvalid_d3 ;
@@ -160,9 +161,9 @@ always_ff@(posedge clk) begin
 end
 
 always_ff@(posedge clk) begin
-    if(v_cnt == 1)
+    if(v_cnt == 1) // padding first line of output image
         xpm_s_axis_tdata  <= {s_axis_tdata_d3,ram1_rdata,s_axis_tdata_d3} ;
-    else if(v_cnt == v_num)
+    else if(v_cnt == v_num) //padding last line of output image
         xpm_s_axis_tdata  <= {ram0_rdata,ram1_rdata,ram0_rdata} ;
     else
         xpm_s_axis_tdata  <= {s_axis_tdata_d3,ram1_rdata,ram0_rdata} ;
@@ -178,15 +179,15 @@ end
 always_ff@(posedge clk) begin
     if(rst)
         s_axis_tready <= 1'b0 ;
-    else if(s_axis_tvalid && s_axis_tready && s_axis_tlast)
+    else if(s_axis_tvalid && s_axis_tready && s_axis_tlast) //block upstream when draining pipeline
         s_axis_tready <= 1'b0 ;
-    else if(s_axis_tvalid_d1 && s_axis_tlast_d1)
+    else if(s_axis_tvalid_d1 && s_axis_tlast_d1)   //drain pipeline 
         s_axis_tready <= 1'b0 ;
-    else if(s_axis_tvalid_d2 && s_axis_tlast_d2)
+    else if(s_axis_tvalid_d2 && s_axis_tlast_d2)   //drain pipeline 
+        s_axis_tready <= 1'b0 ;  
+    else if(s_axis_tvalid_d3 && s_axis_tlast_d3)   //drain pipeline
         s_axis_tready <= 1'b0 ;
-    else if(s_axis_tvalid_d3 && s_axis_tlast_d3)
-        s_axis_tready <= 1'b0 ;
-    else if(v_cnt == v_num)
+    else if(v_cnt == v_num)                        //block upstream when draining last line of output image
         s_axis_tready <= 1'b0 ;
     else 
         s_axis_tready <= ~ prog_full_axis ;
